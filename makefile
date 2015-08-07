@@ -6,7 +6,7 @@
 SIGN=1
 
 # destination for uploading releases
-RELDIR=frs.sourceforge.net:/home/frs/project/weewx/development_versions
+RELDIR=weewx.com:/downloads/development_versions/
 
 # destination for uploading docs
 DOCDST=weewx.com:/
@@ -53,9 +53,11 @@ info:
 	@echo "     VERSION: $(VERSION)"
 	@echo "         CWD: $(CWD)"
 	@echo "      RELDIR: $(RELDIR)"
+	@echo "      DOCDST: $(DOCDST)"
 	@echo "        USER: $(USER)"
 
 realclean:
+	rm -f MANIFEST
 	rm -rf build
 	rm -rf dist
 
@@ -98,7 +100,7 @@ src-package $(DSTDIR)/$(SRCPKG): MANIFEST.in
 	./setup.py sdist
 
 upload-src:
-	scp $(DSTDIR)/$(SRCPKG) $(USER)@$(RELDIR)
+	(cd $(DSTDIR); ftp -u $(USER)@$(RELDIR) $(SRCPKG))
 
 # upload docs to the weewx web site
 upload-docs:
@@ -133,7 +135,7 @@ readme: docs/changes.txt
 	pkg/mkchangelog.pl --ifile docs/changes.txt >> $(DSTDIR)/README.txt
 
 upload-readme: readme
-	scp $(DSTDIR)/README.txt $(USER)@$(RELDIR)
+	(cd $(DSTDIR); ftp -u $(USER)@$(RELDIR) README.txt)
 
 # update the version in all relevant places
 VDOCS=customizing.htm usersguide.htm upgrading.htm
@@ -190,7 +192,7 @@ check-deb:
 	lintian -Ivi $(DSTDIR)/$(DEBPKG)
 
 upload-deb:
-	scp $(DSTDIR)/$(DEBPKG) $(USER)@$(RELDIR)
+	(cd $(DSTDIR); ftp -u $(USER)@$(RELDIR) $(DEBPKG))
 
 RPMREVISION=1
 RPMVER=$(VERSION)-$(RPMREVISION)
@@ -232,7 +234,7 @@ check-rpm:
 	rpmlint $(DSTDIR)/$(RPMPKG)
 
 upload-rpm:
-	scp $(DSTDIR)/$(RPMPKG) $(USER)@$(RELDIR)
+	(cd $(DSTDIR); ftp -u $(USER)@$(RELDIR) $(RPMPKG))
 
 # run perlcritic to ensure clean perl code.  put these in ~/.perlcriticrc:
 # [-CodeLayout::RequireTidyCode]

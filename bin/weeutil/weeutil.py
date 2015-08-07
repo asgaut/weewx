@@ -72,6 +72,9 @@ def accumulateLeaves(d, max_level=99):
     
     d: instance of a configobj.Section (i.e., a section of a ConfigObj)
     
+    Returns: a dictionary with all the accumulated scalars, up to max_level deep, 
+    going upwards
+    
     Example: Supply a default color=blue, size=10. The section "dayimage" overrides the former:
     
     >>> import configobj
@@ -105,6 +108,30 @@ def accumulateLeaves(d, max_level=99):
         merge_dict[k] = d[k]
     cum_dict.merge(merge_dict)
     return cum_dict
+
+def conditional_merge(a_dict, b_dict):
+    """Merge fields from b_dict into a_dict, but only if they do not yet
+    exist in a_dict"""
+    # Go through each key in b_dict
+    for k in b_dict:
+        if isinstance(b_dict[k], dict):
+            if not k in a_dict:
+                # It's a new section. Initialize it...
+                a_dict[k] = {}
+                # ... and transfer over the section comments, if available
+                try:
+                    a_dict.comments[k] = b_dict.comments[k]
+                except AttributeError:
+                    pass
+            conditional_merge(a_dict[k], b_dict[k])
+        elif not k in a_dict:
+            # It's a scalar. Transfer over the value...
+            a_dict[k] = b_dict[k]
+            # ... then its comments, if available:
+            try:
+                a_dict.comments[k] = b_dict.comments[k]
+            except AttributeError:
+                pass
 
 def option_as_list(option):
     if option is None: return None
@@ -445,6 +472,35 @@ def archiveHoursAgoSpan(time_ts, hours_ago=0, grace=1):
 
     return TimeSpan(time.mktime(start_span_dt.timetuple()), 
                     time.mktime(stop_span_dt.timetuple()))
+    
+def archiveSpanSpan(time_ts, time_delta=0, hour_delta=0, day_delta=0, week_delta=0):
+    """ Returns a TimeSpan for the last xxx seconds where xxx equals
+        time_delta sec + hour_delta hours + day_delta days + week_delta weeks
+    
+    Example:
+    >>> os.environ['TZ'] = 'Australia/Brisbane'
+    >>> time_ts = time.mktime(time.strptime("2015-07-21 09:05:35", "%Y-%m-%d %H:%M:%S"))
+    >>> print archiveSpanSpan(time_ts, time_delta=3600)
+    [2015-07-21 08:05:35 AEST (1437429935) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    >>> print archiveSpanSpan(time_ts, hour_delta=6)
+    [2015-07-21 03:05:35 AEST (1437411935) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    >>> print archiveSpanSpan(time_ts, day_delta=1)
+    [2015-07-20 09:05:35 AEST (1437347135) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    >>> print archiveSpanSpan(time_ts, time_delta=3600, day_delta=1)
+    [2015-07-20 08:05:35 AEST (1437343535) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    >>> print archiveSpanSpan(time_ts, week_delta=4)
+    [2015-06-23 09:05:35 AEST (1435014335) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    >>> print archiveSpanSpan(time_ts)
+    [2015-07-21 09:05:34 AEST (1437433534) -> 2015-07-21 09:05:35 AEST (1437433535)]
+    """
+    
+    if time_ts is None:
+        return None
+    start_ts = time_ts - time_delta - hour_delta * 3600 - day_delta * 86400 - \
+               week_delta * 604800
+    if start_ts == time_ts:
+        start_ts -= 1
+    return TimeSpan(start_ts, time_ts)
     
 def isMidnight(time_ts):
     """Is the indicated time on a midnight boundary, local time?
@@ -898,13 +954,13 @@ def latlon_string(ll, hemi, which, format_list=None):
         format_list = ["%02d", "%03d", "%05.2f"]
     return ((format_list[0] if which == 'lat' else format_list[1]) % (deg,), format_list[2] % (minutes,), hemi[0] if ll >= 0 else hemi[1])
 
-def log_traceback(prefix=''):
+def log_traceback(prefix='', loglevel=syslog.LOG_INFO):
     """Log the stack traceback into syslog."""
     sfd = StringIO.StringIO()
     traceback.print_exc(file=sfd)
     sfd.seek(0)
     for line in sfd:
-        syslog.syslog(syslog.LOG_INFO, prefix + line)
+        syslog.syslog(loglevel, prefix + line)
     del sfd
     
 def _get_object(module_class):

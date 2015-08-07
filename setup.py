@@ -175,11 +175,9 @@ class weewx_install_data(install_data):
             if DEBUG:
                 print "Old configuration file found at", config_path
 
-            # Update the old configuration file to the current version:
-            weecfg.update_config(config_dict)
-
-            # Then merge it into the distribution file
-            weecfg.merge_config(config_dict, dist_config_dict)
+            # Update the old configuration file to the current version,
+            # then merge it into the distribution file
+            weecfg.update_and_merge(config_dict, dist_config_dict)
         else:
             # No old config file. Use the distribution file, then, if we can,
             # prompt the user for station specific info
@@ -195,7 +193,9 @@ class weewx_install_data(install_data):
             weecfg.modify_config(config_dict, stn_info, DEBUG)
 
         # Set the WEEWX_ROOT
-        config_dict['WEEWX_ROOT'] = install_dir
+        config_dict['WEEWX_ROOT'] = os.path.normpath(install_dir)
+        # Finally, reorder it to the canonical form
+        weecfg.reorder_to_ref(config_dict)
     
         # Time to write it out. Get a temporary file:
         with tempfile.NamedTemporaryFile("w") as tmpfile:
@@ -283,13 +283,15 @@ class weewx_sdist(sdist):
 
             try:
                 password = config['StdRESTful']['Wunderground']['password']
-                sys.exit("\n*** Wunderground password found in configuration file. Aborting ***\n\n")
+                if password != 'replace_me':
+                    sys.exit("\n*** Wunderground password found in configuration file. Aborting ***\n\n")
             except KeyError:
                 pass
 
             try:
-                password = config['StdRESTful']['Wunderground']['password']
-                sys.exit("\n*** PWSweather password found in configuration file. Aborting ***\n\n")
+                password = config['StdRESTful']['PWSweather']['password']
+                if password != 'replace_me':
+                    sys.exit("\n*** PWSweather password found in configuration file. Aborting ***\n\n")
             except KeyError:
                 pass
 
@@ -439,7 +441,8 @@ if __name__ == "__main__":
                    'bin/wee_device',
                    'bin/wee_extension',
                    'bin/wee_reports',
-                   'bin/weewxd'],
+                   'bin/weewxd',
+                   'bin/wunderfixer'],
           data_files=[
                       ('',
                        ['LICENSE.txt',
